@@ -1,7 +1,8 @@
 {
 	"$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
 	"files": {
-		"include": ["**/*.{json,jsonc,ts}", "!package.json"]
+		"include": ["**/*.json", "**/*.jsonc", "**/*.ts"],
+		"ignore": ["package-lock.json"]
 	},
 	"organizeImports": {
 		"enabled": true

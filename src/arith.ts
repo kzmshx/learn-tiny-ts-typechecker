@@ -13,19 +13,19 @@ type Term =
  * 2. 条件演算子の条件式は boolean 型である
  * 3. 条件演算子の分岐先は同じ型である
  */
-export function typecheckArith(t: Term): Type {
+export function typecheck(t: Term): Type {
 	switch (t.tag) {
 		case "true":
 			return { tag: "Boolean" };
 		case "false":
 			return { tag: "Boolean" };
 		case "if": {
-			const condTy = typecheckArith(t.cond);
+			const condTy = typecheck(t.cond);
 			if (condTy.tag !== "Boolean") {
 				throw "boolean expected";
 			}
-			const thnTy = typecheckArith(t.thn);
-			const elsTy = typecheckArith(t.els);
+			const thnTy = typecheck(t.thn);
+			const elsTy = typecheck(t.els);
 			if (thnTy.tag !== elsTy.tag) {
 				throw "branches must have the same type";
 			}
@@ -34,11 +34,11 @@ export function typecheckArith(t: Term): Type {
 		case "number":
 			return { tag: "Number" };
 		case "add": {
-			const leftTy = typecheckArith(t.left);
+			const leftTy = typecheck(t.left);
 			if (leftTy.tag !== "Number") {
 				throw "number expected on left side of `+`";
 			}
-			const rightTy = typecheckArith(t.right);
+			const rightTy = typecheck(t.right);
 			if (rightTy.tag !== "Number") {
 				throw "number expected on right side of `+`";
 			}
@@ -49,15 +49,15 @@ export function typecheckArith(t: Term): Type {
 	}
 }
 
-export function typecheckArith2(t: Term): Type {
+export function typecheck2(t: Term): Type {
 	switch (t.tag) {
 		case "true":
 			return { tag: "Boolean" };
 		case "false":
 			return { tag: "Boolean" };
 		case "if": {
-			typecheckArith(t.cond);
-			const [thnTy, elsTy] = [typecheckArith(t.thn), typecheckArith(t.els)];
+			typecheck(t.cond);
+			const [thnTy, elsTy] = [typecheck(t.thn), typecheck(t.els)];
 			if (thnTy.tag !== elsTy.tag) {
 				throw "branches must have the same type";
 			}
@@ -66,11 +66,11 @@ export function typecheckArith2(t: Term): Type {
 		case "number":
 			return { tag: "Number" };
 		case "add": {
-			const leftTy = typecheckArith(t.left);
+			const leftTy = typecheck(t.left);
 			if (leftTy.tag !== "Number") {
 				throw "number expected on left side of `+`";
 			}
-			const rightTy = typecheckArith(t.right);
+			const rightTy = typecheck(t.right);
 			if (rightTy.tag !== "Number") {
 				throw "number expected on right side of `+`";
 			}
@@ -85,7 +85,7 @@ if (import.meta.vitest) {
 	const { describe, expect, test } = await import("vitest");
 	const { parseArith } = await import("tiny-ts-parser");
 
-	describe(typecheckArith, () => {
+	describe(typecheck, () => {
 		test.each([
 			["true", { tag: "Boolean" }],
 			["false", { tag: "Boolean" }],
@@ -94,7 +94,7 @@ if (import.meta.vitest) {
 			["true ? 1 : 0", { tag: "Number" }],
 			["true ? true : false", { tag: "Boolean" }],
 		])("OK: `%s`", (term, expected) => {
-			expect(typecheckArith(parseArith(term))).toEqual(expected);
+			expect(typecheck(parseArith(term))).toEqual(expected);
 		});
 
 		test.each([
@@ -103,11 +103,11 @@ if (import.meta.vitest) {
 			["true + 1", "number expected on left side of `+`"],
 			["1 + true", "number expected on right side of `+`"],
 		])("NG: `%s`", (term, expected) => {
-			expect(() => typecheckArith(parseArith(term))).toThrow(expected);
+			expect(() => typecheck(parseArith(term))).toThrow(expected);
 		});
 	});
 
-	describe(typecheckArith2, () => {
+	describe(typecheck2, () => {
 		test.each([
 			["true", { tag: "Boolean" }],
 			["false", { tag: "Boolean" }],
@@ -117,7 +117,7 @@ if (import.meta.vitest) {
 			["true ? true : false", { tag: "Boolean" }],
 			["1 ? 1 : 0", { tag: "Number" }],
 		])("OK: `%s`", (term, expected) => {
-			expect(typecheckArith2(parseArith(term))).toEqual(expected);
+			expect(typecheck2(parseArith(term))).toEqual(expected);
 		});
 	});
 }

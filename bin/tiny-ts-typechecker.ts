@@ -2,7 +2,7 @@
 
 import { parseArgs } from "node:util";
 import { parseArith } from "tiny-ts-parser";
-import { typecheckArith } from "../src/arith";
+import { typecheck as typecheckArith } from "../src/arith";
 
 const { values, positionals } = parseArgs({
 	args: process.argv.slice(2),

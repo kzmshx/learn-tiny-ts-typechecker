@@ -7,6 +7,12 @@ type Term =
 	| { tag: "number"; n: number }
 	| { tag: "add"; left: Term; right: Term };
 
+/**
+ * 判定基準
+ * 1. number 型同士でのみ加算ができる
+ * 2. 条件演算子の条件式は boolean 型である
+ * 3. 条件演算子の分岐先は同じ型である
+ */
 export function typecheckArith(t: Term): Type {
 	switch (t.tag) {
 		case "true":

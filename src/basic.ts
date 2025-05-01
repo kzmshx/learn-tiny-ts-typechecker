@@ -86,24 +86,26 @@ if (import.meta.vitest) {
 	const { describe, expect, test } = await import("vitest");
 	const { parseBasic } = await import("tiny-ts-parser");
 
+	const tBoolean = (): Type => ({ tag: "Boolean" });
+	const tNumber = (): Type => ({ tag: "Number" });
+	const tParam = (name: string, type: Type): Param => ({ name, type });
+	const tFunc = (params: Param[], retType: Type): Type => ({
+		tag: "Func",
+		params,
+		retType,
+	});
+
 	describe(typecheck, () => {
 		test.each([
 			// arith.ts
-			["true", { tag: "Boolean" }],
-			["false", { tag: "Boolean" }],
-			["1", { tag: "Number" }],
-			["1 + 2", { tag: "Number" }],
-			["true ? 1 : 0", { tag: "Number" }],
-			["true ? true : false", { tag: "Boolean" }],
+			["true", tBoolean()],
+			["false", tBoolean()],
+			["1", tNumber()],
+			["1 + 2", tNumber()],
+			["true ? 1 : 0", tNumber()],
+			["true ? true : false", tBoolean()],
 			// 無名関数の定義
-			[
-				"(x: number) => x + 1",
-				{
-					tag: "Func",
-					params: [{ name: "x", type: { tag: "Number" } }],
-					retType: { tag: "Number" },
-				},
-			],
+			["(x: number) => x + 1", tFunc([tParam("x", tNumber())], tNumber())],
 		])("OK: `%s`", (term, expected) => {
 			expect(typecheck(parseBasic(term))).toEqual(expected);
 		});
@@ -111,77 +113,37 @@ if (import.meta.vitest) {
 
 	describe(typeEq, () => {
 		test.each<[string, Type, Type]>([
-			["数値", { tag: "Number" }, { tag: "Number" }],
-			["真偽値", { tag: "Boolean" }, { tag: "Boolean" }],
-			[
-				"関数",
-				{ tag: "Func", params: [], retType: { tag: "Number" } },
-				{ tag: "Func", params: [], retType: { tag: "Number" } },
-			],
+			["数値", tNumber(), tNumber()],
+			["真偽値", tBoolean(), tBoolean()],
+			["関数", tFunc([], tNumber()), tFunc([], tNumber())],
 			[
 				"仮引数名が同じ関数",
-				{
-					tag: "Func",
-					params: [{ name: "x", type: { tag: "Boolean" } }],
-					retType: { tag: "Number" },
-				},
-				{
-					tag: "Func",
-					params: [{ name: "x", type: { tag: "Boolean" } }],
-					retType: { tag: "Number" },
-				},
+				tFunc([tParam("x", tBoolean())], tNumber()),
+				tFunc([tParam("x", tBoolean())], tNumber()),
 			],
 			[
 				"仮引数名が異なる関数",
-				{
-					tag: "Func",
-					params: [{ name: "x", type: { tag: "Boolean" } }],
-					retType: { tag: "Number" },
-				},
-				{
-					tag: "Func",
-					params: [{ name: "y", type: { tag: "Boolean" } }],
-					retType: { tag: "Number" },
-				},
+				tFunc([tParam("x", tBoolean())], tNumber()),
+				tFunc([tParam("y", tBoolean())], tNumber()),
 			],
 		])("eq: %s", (_, a, b) => {
 			expect(typeEq(a, b)).toBe(true);
 		});
 
 		test.each<[string, Type, Type]>([
-			["数値と真偽値", { tag: "Number" }, { tag: "Boolean" }],
-			["真偽値と数値", { tag: "Boolean" }, { tag: "Number" }],
-			[
-				"関数と真偽値",
-				{ tag: "Func", params: [], retType: { tag: "Number" } },
-				{ tag: "Boolean" },
-			],
-			[
-				"返り値型が異なる関数",
-				{ tag: "Func", params: [], retType: { tag: "Number" } },
-				{ tag: "Func", params: [], retType: { tag: "Boolean" } },
-			],
+			["数値と真偽値", tNumber(), tBoolean()],
+			["真偽値と数値", tBoolean(), tNumber()],
+			["関数と真偽値", tFunc([], tNumber()), tBoolean()],
+			["返り値型が異なる関数", tFunc([], tNumber()), tFunc([], tBoolean())],
 			[
 				"仮引数の個数が異なる関数",
-				{ tag: "Func", params: [], retType: { tag: "Number" } },
-				{
-					tag: "Func",
-					params: [{ name: "x", type: { tag: "Number" } }],
-					retType: { tag: "Number" },
-				},
+				tFunc([], tNumber()),
+				tFunc([tParam("x", tNumber())], tNumber()),
 			],
 			[
 				"仮引数の型が異なる関数",
-				{
-					tag: "Func",
-					params: [{ name: "x", type: { tag: "Number" } }],
-					retType: { tag: "Number" },
-				},
-				{
-					tag: "Func",
-					params: [{ name: "x", type: { tag: "Boolean" } }],
-					retType: { tag: "Number" },
-				},
+				tFunc([tParam("x", tNumber())], tNumber()),
+				tFunc([tParam("x", tBoolean())], tNumber()),
 			],
 		])("not eq: %s", (_, a, b) => {
 			expect(typeEq(a, b)).toBe(false);

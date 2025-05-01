@@ -1,3 +1,16 @@
+/**
+ * サポートする構文
+ * - 真偽値リテラル
+ * - 数値リテラル
+ * - 条件演算子
+ * - 加算
+ *
+ * 判定基準
+ * - 真偽値同士でのみ加算ができる
+ * - 条件演算子の条件式は boolean 型である
+ * - 条件演算子の分岐先は同じ型である
+ */
+
 type Type = { tag: "Boolean" } | { tag: "Number" };
 
 type Term =
@@ -7,12 +20,6 @@ type Term =
 	| { tag: "number"; n: number }
 	| { tag: "add"; left: Term; right: Term };
 
-/**
- * 判定基準
- * 1. number 型同士でのみ加算ができる
- * 2. 条件演算子の条件式は boolean 型である
- * 3. 条件演算子の分岐先は同じ型である
- */
 export function typecheck(t: Term): Type {
 	switch (t.tag) {
 		case "true":

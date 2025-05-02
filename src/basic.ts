@@ -13,6 +13,8 @@
  * - 関数呼び出しにおいて、仮引数と実引数の個数と型が一致していなければならない
  */
 
+import { assert, ensure } from "./util";
+
 type Type =
 	| { tag: "Boolean" }
 	| { tag: "Number" }
@@ -32,36 +34,58 @@ type Term =
 	| { tag: "seq"; body: Term; rest: Term }
 	| { tag: "const"; name: string; init: Term; rest: Term };
 
-export function typecheck(t: Term): Type {
+type TypeEnv = Record<string, Type>;
+
+export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 	switch (t.tag) {
 		case "true":
 			return { tag: "Boolean" };
 		case "false":
 			return { tag: "Boolean" };
 		case "if": {
-			const condTy = typecheck(t.cond);
-			if (condTy.tag !== "Boolean") {
-				throw "boolean expected";
-			}
-			const thnTy = typecheck(t.thn);
-			const elsTy = typecheck(t.els);
-			if (!typeEq(thnTy, elsTy)) {
-				throw "branches must have the same type";
-			}
+			const condTy = typecheck(t.cond, tyEnv);
+			assert(condTy.tag === "Boolean", "boolean expected");
+			const thnTy = typecheck(t.thn, tyEnv);
+			const elsTy = typecheck(t.els, tyEnv);
+			assert(typeEq(thnTy, elsTy), "branches must have the same type");
 			return thnTy;
 		}
 		case "number":
 			return { tag: "Number" };
 		case "add": {
-			const leftTy = typecheck(t.left);
-			if (leftTy.tag !== "Number") {
-				throw "number expected on left side of `+`";
-			}
-			const rightTy = typecheck(t.right);
-			if (rightTy.tag !== "Number") {
-				throw "number expected on right side of `+`";
-			}
+			const leftTy = typecheck(t.left, tyEnv);
+			assert(leftTy.tag === "Number", "number expected on left side of `+`");
+			const rightTy = typecheck(t.right, tyEnv);
+			assert(rightTy.tag === "Number", "number expected on right side of `+`");
 			return { tag: "Number" };
+		}
+		case "var": {
+			const ty = tyEnv[t.name];
+			assert(ty !== undefined, `unknown variable: ${t.name}`);
+			return ty;
+		}
+		case "func": {
+			const scopedTyEnv = { ...tyEnv };
+			for (const param of t.params) {
+				scopedTyEnv[param.name] = param.type;
+			}
+			const retType = typecheck(t.body, scopedTyEnv);
+			return { tag: "Func", params: t.params, retType };
+		}
+		case "call": {
+			const funcTy = typecheck(t.func, tyEnv);
+			assert(funcTy.tag === "Func", "function expected");
+			assert(
+				funcTy.params.length === t.args.length,
+				"wrong number of arguments",
+			);
+			for (let i = 0; i < t.args.length; i++) {
+				const arg = ensure(t.args[i]);
+				const param = ensure(funcTy.params[i]);
+				const argTy = typecheck(arg, tyEnv);
+				assert(typeEq(argTy, param.type), "parameter type mismatch");
+			}
+			return funcTy.retType;
 		}
 		default:
 			throw `unknown term: ${JSON.stringify(t)}`;
@@ -74,7 +98,7 @@ function typeEq(a: Type, b: Type): boolean {
 			return (
 				a.tag === "Func" &&
 				a.params.length === b.params.length &&
-				a.params.every((p, i) => typeEq(p.type, (b.params[i] as Param).type)) &&
+				a.params.every((p, i) => typeEq(p.type, ensure(b.params[i]).type)) &&
 				typeEq(a.retType, b.retType)
 			);
 		default:
@@ -97,17 +121,34 @@ if (import.meta.vitest) {
 
 	describe(typecheck, () => {
 		test.each([
-			// arith.ts
 			["true", tBoolean()],
 			["false", tBoolean()],
 			["1", tNumber()],
 			["1 + 2", tNumber()],
 			["true ? 1 : 0", tNumber()],
 			["true ? true : false", tBoolean()],
-			// 無名関数の定義
+			["(x: number) => 1", tFunc([tParam("x", tNumber())], tNumber())],
 			["(x: number) => x + 1", tFunc([tParam("x", tNumber())], tNumber())],
+			["((x: number) => x)(1)", tNumber()],
+			[
+				"(fn: () => number) => fn()",
+				tFunc([tParam("fn", tFunc([], tNumber()))], tNumber()),
+			],
 		])("OK: `%s`", (term, expected) => {
-			expect(typecheck(parseBasic(term))).toEqual(expected);
+			expect(typecheck(parseBasic(term), {})).toEqual(expected);
+		});
+
+		test.each([
+			["1 ? 1 : 0", "boolean expected"],
+			["true ? true : 0", "branches must have the same type"],
+			["true + 1", "number expected on left side of `+`"],
+			["1 + true", "number expected on right side of `+`"],
+			["x", "unknown variable: x"],
+			["(x: number) => x()", "function expected"],
+			["((x: number) => x)(1, 2)", "wrong number of arguments"],
+			["((x: number) => x)(true)", "parameter type mismatch"],
+		])("NG: `%s`", (term, expected) => {
+			expect(() => typecheck(parseBasic(term), {})).toThrow(expected);
 		});
 	});
 

@@ -8,6 +8,10 @@
 	"[typescript]": {
 		"editor.defaultFormatter": "biomejs.biome"
 	},
+	"[yaml]": {
+		"editor.insertSpaces": true,
+		"editor.tabSize": 2
+	},
 	"editor.codeActionsOnSave": {
 		"quickfix.biome": "explicit",
 		"source.addMissingImports": "explicit",

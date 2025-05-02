@@ -18,5 +18,8 @@
 		"@biomejs/biome": "1.9.4",
 		"@types/node": "22.15.3",
 		"vitest": "3.1.2"
+	},
+	"engines": {
+		"node": ">=22"
 	}
 }

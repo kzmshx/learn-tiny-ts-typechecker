@@ -14,4 +14,7 @@ jobs:
           cache: "npm"
           cache-dependency-path: "package-lock.json"
       - run: npm ci
-      - run: npm run test
+      - run: npm run test:coverage
+      - name: "Report coverage"
+        if: always()
+        uses: davelosert/vitest-coverage-report-action@adec81c7327940e0578d70d0bbdd87b0ca21df55

@@ -11,9 +11,12 @@ export function exists<T>(v: T | null | undefined): v is NonNullable<T> {
 	return typeof v !== "undefined" && v !== null;
 }
 
-export function ensure<T>(v: T | null | undefined): NonNullable<T> {
+export function ensure<T>(
+	v: T | null | undefined,
+	message?: string,
+): NonNullable<T> {
 	if (!exists(v)) {
-		throw "value should exists";
+		throw message ?? "value should exists";
 	}
 	return v;
 }

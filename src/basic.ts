@@ -36,6 +36,20 @@ type Term =
 
 type TypeEnv = Record<string, Type>;
 
+function typeEq(a: Type, b: Type): boolean {
+	switch (b.tag) {
+		case "Func":
+			return (
+				a.tag === "Func" &&
+				a.params.length === b.params.length &&
+				a.params.every((p, i) => typeEq(p.type, ensure(b.params[i]).type)) &&
+				typeEq(a.retType, b.retType)
+			);
+		default:
+			return a.tag === b.tag;
+	}
+}
+
 export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 	switch (t.tag) {
 		case "true":
@@ -59,11 +73,8 @@ export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 			assert(rightTy.tag === "Number", "number expected on right side of `+`");
 			return { tag: "Number" };
 		}
-		case "var": {
-			const ty = tyEnv[t.name];
-			assert(ty !== undefined, `unknown variable: ${t.name}`);
-			return ty;
-		}
+		case "var":
+			return ensure(tyEnv[t.name], `unknown variable: ${t.name}`);
 		case "func": {
 			const scopedTyEnv = { ...tyEnv };
 			for (const param of t.params) {
@@ -87,22 +98,12 @@ export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 			}
 			return funcTy.retType;
 		}
+		case "seq": {
+			typecheck(t.body, tyEnv);
+			return typecheck(t.rest, tyEnv);
+		}
 		default:
 			throw `unknown term: ${JSON.stringify(t)}`;
-	}
-}
-
-function typeEq(a: Type, b: Type): boolean {
-	switch (b.tag) {
-		case "Func":
-			return (
-				a.tag === "Func" &&
-				a.params.length === b.params.length &&
-				a.params.every((p, i) => typeEq(p.type, ensure(b.params[i]).type)) &&
-				typeEq(a.retType, b.retType)
-			);
-		default:
-			return a.tag === b.tag;
 	}
 }
 
@@ -127,13 +128,19 @@ if (import.meta.vitest) {
 			["1 + 2", tNumber()],
 			["true ? 1 : 0", tNumber()],
 			["true ? true : false", tBoolean()],
+			// 無名関数定義
 			["(x: number) => 1", tFunc([tParam("x", tNumber())], tNumber())],
 			["(x: number) => x + 1", tFunc([tParam("x", tNumber())], tNumber())],
+			// 関数呼び出し
 			["((x: number) => x)(1)", tNumber()],
+			// 変数参照
 			[
 				"(fn: () => number) => fn()",
 				tFunc([tParam("fn", tFunc([], tNumber()))], tNumber()),
 			],
+			// 逐次実行
+			["0; 1", tNumber()],
+			["false; 1", tNumber()],
 		])("OK: `%s`", (term, expected) => {
 			expect(typecheck(parseBasic(term), {})).toEqual(expected);
 		});
@@ -147,6 +154,8 @@ if (import.meta.vitest) {
 			["(x: number) => x()", "function expected"],
 			["((x: number) => x)(1, 2)", "wrong number of arguments"],
 			["((x: number) => x)(true)", "parameter type mismatch"],
+			["true + 1; 1", "number expected on left side of `+`"],
+			["1; true + 1", "number expected on left side of `+`"],
 		])("NG: `%s`", (term, expected) => {
 			expect(() => typecheck(parseBasic(term), {})).toThrow(expected);
 		});

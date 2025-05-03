@@ -102,6 +102,10 @@ export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 			typecheck(t.body, tyEnv);
 			return typecheck(t.rest, tyEnv);
 		}
+		case "const": {
+			const initTy = typecheck(t.init, tyEnv);
+			return typecheck(t.rest, { ...tyEnv, [t.name]: initTy });
+		}
 		default:
 			throw `unknown term: ${JSON.stringify(t)}`;
 	}
@@ -141,6 +145,17 @@ if (import.meta.vitest) {
 			// 逐次実行
 			["0; 1", tNumber()],
 			["false; 1", tNumber()],
+			// 変数の定義
+			["const x = 1", tNumber()],
+			["const x = 1; const x = true", tBoolean()],
+			[
+				`const add = (x: number, y: number) => x + y;
+const select = (cond: boolean, thn: number, els: number) => cond ? thn : els;
+const x = add(1, add(2, 3));
+const y = select(true, x, 0);
+y;`,
+				tNumber(),
+			],
 		])("OK: `%s`", (term, expected) => {
 			expect(typecheck(parseBasic(term), {})).toEqual(expected);
 		});

@@ -1,5 +1,9 @@
 import { error } from "tiny-ts-parser";
 
+export function assertNever(v: never): never {
+	throw `unreachable: ${v}`;
+}
+
 export function assert(
 	condition: boolean,
 	message: string,

@@ -19,5 +19,6 @@
 		"source.organizeImports.biome": "explicit"
 	},
 	"editor.formatOnSave": true,
-	"editor.insertSpaces": false
+	"editor.insertSpaces": false,
+	"typescript.preferences.importModuleSpecifierEnding": "js"
 }

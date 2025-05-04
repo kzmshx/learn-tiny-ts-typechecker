@@ -143,6 +143,13 @@ export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 			}));
 			return { tag: "Object", props };
 		}
+		case "objectGet": {
+			const objTy = typecheck(t.obj, tyEnv);
+			assert(objTy.tag === "Object", "object expected", t);
+			const propTy = objTy.props.find((p) => p.name === t.propName);
+			assert(propTy !== undefined, `unknown property: ${t.propName}`, t);
+			return propTy.type;
+		}
 		default:
 			throw `unknown term: ${JSON.stringify(t)}`;
 	}
@@ -221,6 +228,9 @@ if (import.meta.vitest) {
 					["b", bool()],
 				]),
 			],
+			// オブジェクトプロパティアクセス
+			["const obj = { a: 1, b: true }; obj.a;", num()],
+			["const obj = { a: 1, b: true }; obj.b;", bool()],
 		])("OK: `%s`", (term, expected) => {
 			expect(typecheck(parseObj(term), {})).toStrictEqual(expected);
 		});
@@ -244,6 +254,8 @@ if (import.meta.vitest) {
 							z;`),
 				"unknown variable: z",
 			],
+			["const nonObj = 1; nonObj.a;", "object expected"],
+			["const obj = { a: 1, b: true }; obj.c;", "unknown property: c"],
 		])("NG: `%s`", (term, expected) => {
 			expect(() => typecheck(parseObj(term), {})).toThrow(expected);
 		});

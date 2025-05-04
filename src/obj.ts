@@ -136,6 +136,13 @@ export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 			const initTy = typecheck(t.init, tyEnv);
 			return typecheck(t.rest, { ...tyEnv, [t.name]: initTy });
 		}
+		case "objectNew": {
+			const props = t.props.map(({ name, term }) => ({
+				name,
+				type: typecheck(term, tyEnv),
+			}));
+			return { tag: "Object", props };
+		}
 		default:
 			throw `unknown term: ${JSON.stringify(t)}`;
 	}
@@ -197,14 +204,22 @@ if (import.meta.vitest) {
 			["const x = 1; const x = true", bool()],
 			[
 				trim(`const add = (x: number, y: number) => {
-					const z = x + y;
-					return z;
-				};
-				const select = (cond: boolean, thn: number, els: number) => cond ? thn : els;
-				const x = add(1, add(2, 3));
-				const y = select(true, x, 0);
+								const z = x + y;
+								return z;
+							};
+							const select = (cond: boolean, thn: number, els: number) => cond ? thn : els;
+							const x = add(1, add(2, 3));
+							const y = select(true, x, 0);
 							y;`),
 				num(),
+			],
+			// オブジェクトリテラル
+			[
+				"({ a: 1, b: true })",
+				obj([
+					["a", num()],
+					["b", bool()],
+				]),
 			],
 		])("OK: `%s`", (term, expected) => {
 			expect(typecheck(parseObj(term), {})).toStrictEqual(expected);
@@ -223,9 +238,9 @@ if (import.meta.vitest) {
 			["1; true + 1", "number expected on left side of `+`"],
 			[
 				trim(`const add = (x: number, y: number) => {
-					const z = x + y;
-					return z;
-				};
+								const z = x + y;
+								return z;
+							};
 							z;`),
 				"unknown variable: z",
 			],

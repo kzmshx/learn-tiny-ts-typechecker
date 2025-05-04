@@ -151,7 +151,7 @@ export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 			return propTy.type;
 		}
 		default:
-			throw `unknown term: ${JSON.stringify(t)}`;
+			assertNever(t);
 	}
 }
 
@@ -168,8 +168,14 @@ export function typeShow(t: Type): string {
 			const ret = typeShow(t.retType);
 			return `(${params}) => ${ret}`;
 		}
+		case "Object": {
+			const props = t.props
+				.map((p) => `${p.name}: ${typeShow(p.type)}`)
+				.join(", ");
+			return `{ ${props} }`;
+		}
 		default:
-			throw `unknown type: ${JSON.stringify(t)}`;
+			assertNever(t);
 	}
 }
 
@@ -331,6 +337,16 @@ if (import.meta.vitest) {
 				),
 				"(f: (x: number) => boolean, g: (y: number) => boolean) => (z: number) => boolean",
 			],
+			// オブジェクト
+			[obj([["a", num()]]), "{ a: number }"],
+			[
+				obj([
+					["a", num()],
+					["b", bool()],
+				]),
+				"{ a: number, b: boolean }",
+			],
+			[obj([["a", fn([], num())]]), "{ a: () => number }"],
 		])("shows %s as %s", (t, expected) => {
 			expect(typeShow(t)).toStrictEqual(expected);
 		});

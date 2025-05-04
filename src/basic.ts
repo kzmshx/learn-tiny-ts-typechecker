@@ -123,6 +123,24 @@ export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 	}
 }
 
+export function typeShow(t: Type): string {
+	switch (t.tag) {
+		case "Boolean":
+			return "boolean";
+		case "Number":
+			return "number";
+		case "Func": {
+			const params = t.params
+				.map((p) => `${p.name}: ${typeShow(p.type)}`)
+				.join(", ");
+			const ret = typeShow(t.retType);
+			return `(${params}) => ${ret}`;
+		}
+		default:
+			throw `unknown type: ${JSON.stringify(t)}`;
+	}
+}
+
 if (import.meta.vitest) {
 	const { describe, expect, test } = await import("vitest");
 	const { parseBasic } = await import("tiny-ts-parser");
@@ -224,6 +242,27 @@ y;`,
 			],
 		])("not eq: %s", (_, a, b) => {
 			expect(typeEq(a, b)).toBe(false);
+		});
+	});
+
+	describe(typeShow, () => {
+		test.each<[Type, string]>([
+			[tBoolean(), "boolean"],
+			[tNumber(), "number"],
+			[tFunc([], tNumber()), "() => number"],
+			[tFunc([tParam("x", tBoolean())], tNumber()), "(x: boolean) => number"],
+			[
+				tFunc(
+					[
+						tParam("f", tFunc([tParam("x", tNumber())], tBoolean())),
+						tParam("g", tFunc([tParam("y", tNumber())], tBoolean())),
+					],
+					tFunc([tParam("z", tNumber())], tBoolean()),
+				),
+				"(f: (x: number) => boolean, g: (y: number) => boolean) => (z: number) => boolean",
+			],
+		])("shows %s as %s", (t, expected) => {
+			expect(typeShow(t)).toStrictEqual(expected);
 		});
 	});
 }

@@ -260,8 +260,13 @@ if (import.meta.vitest) {
 							z;`),
 				"unknown variable: z",
 			],
+			// オブジェクトプロパティアクセス
 			["const nonObj = 1; nonObj.a;", "object expected"],
 			["const obj = { a: 1, b: true }; obj.c;", "unknown property: c"],
+			[
+				"const f = (obj: { a: number }) => obj.a; f({ a: 1, b: true });",
+				"parameter type mismatch",
+			],
 		])("NG: `%s`", (term, expected) => {
 			expect(() => typecheck(parseObj(term), {})).toThrow(expected);
 		});

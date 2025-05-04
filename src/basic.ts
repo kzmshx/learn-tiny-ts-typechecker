@@ -32,7 +32,9 @@ type Term =
 	| { tag: "func"; params: Param[]; body: Term }
 	| { tag: "call"; func: Term; args: Term[] }
 	| { tag: "seq"; body: Term; rest: Term }
-	| { tag: "const"; name: string; init: Term; rest: Term };
+	| { tag: "const"; name: string; init: Term; rest: Term }
+	| { tag: "seq2"; body: Term[] }
+	| { tag: "const2"; name: string; init: Term };
 
 type TypeEnv = Record<string, Type>;
 
@@ -118,6 +120,23 @@ export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 			const initTy = typecheck(t.init, tyEnv);
 			return typecheck(t.rest, { ...tyEnv, [t.name]: initTy });
 		}
+		case "seq2": {
+			let lastTy: Type | null = null;
+			for (const term of t.body) {
+				if (term.tag === "const2") {
+					const initTy = typecheck(term.init, tyEnv);
+					tyEnv[term.name] = initTy;
+					lastTy = initTy;
+				} else {
+					lastTy = typecheck(term, tyEnv);
+				}
+			}
+			assert(lastTy !== null, "empty sequence", t);
+			return lastTy;
+		}
+		case "const2": {
+			throw "const2 must not be reached";
+		}
 		default:
 			throw `unknown term: ${JSON.stringify(t)}`;
 	}
@@ -143,7 +162,7 @@ export function typeShow(t: Type): string {
 
 if (import.meta.vitest) {
 	const { describe, expect, test } = await import("vitest");
-	const { parseBasic } = await import("tiny-ts-parser");
+	const { parseBasic, parseBasic2 } = await import("tiny-ts-parser");
 
 	const tBoolean = (): Type => ({ tag: "Boolean" });
 	const tNumber = (): Type => ({ tag: "Number" });
@@ -179,15 +198,23 @@ if (import.meta.vitest) {
 			["const x = 1", tNumber()],
 			["const x = 1; const x = true", tBoolean()],
 			[
-				`const add = (x: number, y: number) => x + y;
-const select = (cond: boolean, thn: number, els: number) => cond ? thn : els;
-const x = add(1, add(2, 3));
-const y = select(true, x, 0);
-y;`,
+				`
+				const add = (x: number, y: number) => {
+					const z = x + y;
+					return z;
+				};
+				const select = (cond: boolean, thn: number, els: number) => cond ? thn : els;
+				const x = add(1, add(2, 3));
+				const y = select(true, x, 0);
+				y;
+				`
+					.trim()
+					.replace(/\s+/g, " "),
 				tNumber(),
 			],
 		])("OK: `%s`", (term, expected) => {
 			expect(typecheck(parseBasic(term), {})).toEqual(expected);
+			expect(typecheck(parseBasic2(term), {})).toEqual(expected);
 		});
 
 		test.each([
@@ -201,8 +228,21 @@ y;`,
 			["((x: number) => x)(true)", "parameter type mismatch"],
 			["true + 1; 1", "number expected on left side of `+`"],
 			["1; true + 1", "number expected on left side of `+`"],
+			[
+				`
+				const add = (x: number, y: number) => {
+					const z = x + y;
+					return z;
+				};
+				z;
+				`
+					.trim()
+					.replace(/\s+/g, " "),
+				"unknown variable: z",
+			],
 		])("NG: `%s`", (term, expected) => {
 			expect(() => typecheck(parseBasic(term), {})).toThrow(expected);
+			expect(() => typecheck(parseBasic2(term), {})).toThrow(expected);
 		});
 	});
 

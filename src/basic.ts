@@ -58,23 +58,34 @@ export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 			return { tag: "Boolean" };
 		case "if": {
 			const condTy = typecheck(t.cond, tyEnv);
-			assert(condTy.tag === "Boolean", "boolean expected");
+			assert(condTy.tag === "Boolean", "boolean expected", t.cond);
 			const thnTy = typecheck(t.thn, tyEnv);
 			const elsTy = typecheck(t.els, tyEnv);
-			assert(typeEq(thnTy, elsTy), "branches must have the same type");
+			assert(typeEq(thnTy, elsTy), "branches must have the same type", t);
 			return thnTy;
 		}
 		case "number":
 			return { tag: "Number" };
 		case "add": {
 			const leftTy = typecheck(t.left, tyEnv);
-			assert(leftTy.tag === "Number", "number expected on left side of `+`");
+			assert(
+				leftTy.tag === "Number",
+				"number expected on left side of `+`",
+				t.left,
+			);
 			const rightTy = typecheck(t.right, tyEnv);
-			assert(rightTy.tag === "Number", "number expected on right side of `+`");
+			assert(
+				rightTy.tag === "Number",
+				"number expected on right side of `+`",
+				t.right,
+			);
 			return { tag: "Number" };
 		}
-		case "var":
-			return ensure(tyEnv[t.name], `unknown variable: ${t.name}`);
+		case "var": {
+			const ty = tyEnv[t.name];
+			assert(ty !== undefined, `unknown variable: ${t.name}`, t);
+			return ty;
+		}
 		case "func": {
 			const scopedTyEnv = { ...tyEnv };
 			for (const param of t.params) {
@@ -85,16 +96,17 @@ export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 		}
 		case "call": {
 			const funcTy = typecheck(t.func, tyEnv);
-			assert(funcTy.tag === "Func", "function expected");
+			assert(funcTy.tag === "Func", "function expected", t);
 			assert(
 				funcTy.params.length === t.args.length,
 				"wrong number of arguments",
+				t,
 			);
 			for (let i = 0; i < t.args.length; i++) {
 				const arg = ensure(t.args[i]);
 				const param = ensure(funcTy.params[i]);
 				const argTy = typecheck(arg, tyEnv);
-				assert(typeEq(argTy, param.type), "parameter type mismatch");
+				assert(typeEq(argTy, param.type), "parameter type mismatch", t);
 			}
 			return funcTy.retType;
 		}

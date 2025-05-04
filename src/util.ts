@@ -1,9 +1,13 @@
+import { error } from "tiny-ts-parser";
+
 export function assert(
 	condition: boolean,
-	message?: string,
+	message: string,
+	// biome-ignore lint/suspicious/noExplicitAny:
+	term: any,
 ): asserts condition {
 	if (!condition) {
-		throw message;
+		error(message, term);
 	}
 }
 

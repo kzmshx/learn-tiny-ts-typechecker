@@ -13,7 +13,7 @@
  * - 関数呼び出しにおいて、仮引数と実引数の個数と型が一致していなければならない
  */
 
-import { assert, ensure } from "./util";
+import { assert, ensure } from "./util.ts";
 
 type Type =
 	| { tag: "Boolean" }

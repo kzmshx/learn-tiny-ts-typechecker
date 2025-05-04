@@ -1,4 +1,4 @@
-import { type Type, error } from "tiny-ts-parser";
+import { error } from "tiny-ts-parser";
 
 export function assert(
 	condition: boolean,

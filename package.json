@@ -1,9 +1,10 @@
 {
 	"name": "learn-tiny-ts-typechecker",
+	"version": "0.1.0",
 	"private": true,
 	"type": "module",
 	"bin": {
-		"tiny-ts-typechecker": "./bin/tiny-ts-typechecker.ts"
+		"tiny-ts-typechecker": "bin/tiny-ts-typechecker.ts"
 	},
 	"scripts": {
 		"check": "biome check",

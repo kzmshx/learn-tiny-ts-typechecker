@@ -17,7 +17,12 @@ type Term =
 	| { tag: "number"; n: number }
 	| { tag: "add"; left: Term; right: Term }
 	| { tag: "var"; name: string }
-	| { tag: "func"; params: ParamType[]; body: Term }
+	| {
+			tag: "func";
+			params: ParamType[];
+			retType?: Type;
+			body: Term;
+	  }
 	| {
 			tag: "recFunc";
 			funcName: string;
@@ -59,9 +64,9 @@ function typeEq(a: Type, b: Type): boolean {
 export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 	switch (t.tag) {
 		case "true":
+		case "false": {
 			return { tag: "Boolean" };
-		case "false":
-			return { tag: "Boolean" };
+		}
 		case "if": {
 			const condTy = typecheck(t.cond, tyEnv);
 			assert(condTy.tag === "Boolean", "boolean expected", t.cond);
@@ -70,8 +75,9 @@ export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 			assert(typeEq(thnTy, elsTy), "branches must have the same type", t);
 			return thnTy;
 		}
-		case "number":
+		case "number": {
 			return { tag: "Number" };
+		}
 		case "add": {
 			const leftTy = typecheck(t.left, tyEnv);
 			assert(
@@ -97,6 +103,9 @@ export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 				...tyEnv,
 				...Object.fromEntries(t.params.map((p) => [p.name, p.type])),
 			});
+			if (t.retType !== undefined) {
+				assert(typeEq(t.retType, retType), "return type mismatch", t);
+			}
 			return { tag: "Func", params: t.params, retType };
 		}
 		case "recFunc": {
@@ -230,6 +239,7 @@ if (import.meta.vitest) {
 							z;`),
 				"unknown variable: z",
 			],
+			["(x: number): boolean => 1", "return type mismatch"],
 		])("NG: `%s`", (term, expected) => {
 			expect(() => typecheck(parseRecFunc(term), {})).toThrow(expected);
 		});

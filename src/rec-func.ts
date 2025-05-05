@@ -61,7 +61,7 @@ function typeEq(a: Type, b: Type): boolean {
 	}
 }
 
-export function typecheck(t: Term, tyEnv: TypeEnv): Type {
+export function typecheck(t: Term, tyEnv: TypeEnv, p?: Term): Type {
 	switch (t.tag) {
 		case "true":
 		case "false": {
@@ -99,28 +99,38 @@ export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 			return ty;
 		}
 		case "func": {
-			const retType = typecheck(t.body, {
+			const tyScope = {
 				...tyEnv,
 				...Object.fromEntries(t.params.map((p) => [p.name, p.type])),
-			});
+			};
+			if (t.retType && p?.tag === "const") {
+				const selfTy: Type = {
+					tag: "Func",
+					params: t.params,
+					retType: t.retType,
+				};
+				tyScope[p.name] = selfTy;
+			}
+			const retType = typecheck(t.body, tyScope);
 			if (t.retType !== undefined) {
 				assert(typeEq(t.retType, retType), "return type mismatch", t);
 			}
 			return { tag: "Func", params: t.params, retType };
 		}
 		case "recFunc": {
-			const funcTy: Type = {
+			const selfTy: Type = {
 				tag: "Func",
 				params: t.params,
 				retType: t.retType,
 			};
-			const retType = typecheck(t.body, {
+			const tyScope = {
 				...tyEnv,
 				...Object.fromEntries(t.params.map((p) => [p.name, p.type])),
-				[t.funcName]: funcTy,
-			});
+				[t.funcName]: selfTy,
+			};
+			const retType = typecheck(t.body, tyScope);
 			assert(typeEq(t.retType, retType), "return type mismatch", t);
-			return typecheck(t.rest, { ...tyEnv, [t.funcName]: funcTy });
+			return typecheck(t.rest, { ...tyEnv, [t.funcName]: selfTy });
 		}
 		case "call": {
 			const funcTy = typecheck(t.func, tyEnv);
@@ -143,7 +153,7 @@ export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 			return typecheck(t.rest, tyEnv);
 		}
 		case "const": {
-			const initTy = typecheck(t.init, tyEnv);
+			const initTy = typecheck(t.init, tyEnv, t);
 			return typecheck(t.rest, { ...tyEnv, [t.name]: initTy });
 		}
 		default:
@@ -216,7 +226,9 @@ if (import.meta.vitest) {
 				"function f(x: number): number { return f(x); }",
 				fn([["x", num()]], num()),
 			],
+			["const f = (x: number): number => f(x)", fn([["x", num()]], num())],
 		])("OK: `%s`", (term, expected) => {
+			console.dir(parseRecFunc(term), { depth: 4 });
 			expect(typecheck(parseRecFunc(term), {})).toStrictEqual(expected);
 		});
 
@@ -239,7 +251,9 @@ if (import.meta.vitest) {
 							z;`),
 				"unknown variable: z",
 			],
-			["(x: number): boolean => 1", "return type mismatch"],
+			["function f(): boolean { return 1; }", "return type mismatch"],
+			["(): boolean => 1", "return type mismatch"],
+			["const a = a + 1", "unknown variable: a"],
 		])("NG: `%s`", (term, expected) => {
 			expect(() => typecheck(parseRecFunc(term), {})).toThrow(expected);
 		});
@@ -289,3 +303,5 @@ if (import.meta.vitest) {
 		});
 	});
 }
+
+const f = (x: number): number => f(x);

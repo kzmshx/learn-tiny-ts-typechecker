@@ -9,7 +9,7 @@ import { assert, assertNever, ensure } from "./util.ts";
 type Term =
 	| { tag: "true" }
 	| { tag: "false" }
-	| { tag: "if"; cond: Term; thn: Term; els: Term }
+	// | { tag: "if"; cond: Term; thn: Term; els: Term }
 	| { tag: "number"; n: number }
 	| { tag: "add"; left: Term; right: Term }
 	| { tag: "var"; name: string }
@@ -64,19 +64,48 @@ function isEqualType(a: Type, b: Type): boolean {
 	}
 }
 
+function isSubtypeOf(a: Type, b: Type): boolean {
+	switch (b.tag) {
+		case "Number":
+		case "Boolean":
+			return a.tag === b.tag;
+		case "Func":
+			return (
+				a.tag === b.tag &&
+				a.params.length === b.params.length &&
+				a.params.every((ap, i) => {
+					const bp = ensure(b.params[i]);
+					return isSubtypeOf(bp.type, ap.type);
+				}) &&
+				isSubtypeOf(a.retType, b.retType)
+			);
+		case "Object": {
+			return (
+				a.tag === b.tag &&
+				b.props.every((bp) => {
+					const ap = a.props.find((ap) => ap.name === bp.name);
+					return ap && isSubtypeOf(ap.type, bp.type);
+				})
+			);
+		}
+		default:
+			assertNever(b);
+	}
+}
+
 export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 	switch (t.tag) {
 		case "true":
 		case "false":
 			return { tag: "Boolean" };
-		case "if": {
-			const condTy = typecheck(t.cond, tyEnv);
-			assert(condTy.tag === "Boolean", "boolean expected", t.cond);
-			const thnTy = typecheck(t.thn, tyEnv);
-			const elsTy = typecheck(t.els, tyEnv);
-			assert(isEqualType(thnTy, elsTy), "branches must have the same type", t);
-			return thnTy;
-		}
+		// case "if": {
+		// 	const condTy = typecheck(t.cond, tyEnv);
+		// 	assert(condTy.tag === "Boolean", "boolean expected", t.cond);
+		// 	const thnTy = typecheck(t.thn, tyEnv);
+		// 	const elsTy = typecheck(t.els, tyEnv);
+		// 	assert(isEqualType(thnTy, elsTy), "branches must have the same type", t);
+		// 	return thnTy;
+		// }
 		case "number":
 			return { tag: "Number" };
 		case "add": {
@@ -184,12 +213,12 @@ if (import.meta.vitest) {
 	const num = (): Type => ({ tag: "Number" });
 	const param = (name: string, type: Type): ParamType => ({ name, type });
 	const prop = (name: string, type: Type): PropType => ({ name, type });
-	const fn = (params: [name: string, type: Type][], retType: Type): Type => ({
+	const func = (params: [name: string, type: Type][], retType: Type): Type => ({
 		tag: "Func",
 		params: params.map(([name, type]) => param(name, type)),
 		retType,
 	});
-	const obj = (props: [name: string, type: Type][]): Type => ({
+	const obj = (...props: [name: string, type: Type][]): Type => ({
 		tag: "Object",
 		props: props.map(([name, type]) => prop(name, type)),
 	});
@@ -200,36 +229,28 @@ if (import.meta.vitest) {
 			["false", bool()],
 			["1", num()],
 			["1 + 2", num()],
-			["true ? 1 : 0", num()],
-			["true ? true : false", bool()],
-			["(x: number) => 1", fn([["x", num()]], num())],
-			["(x: number) => x + 1", fn([["x", num()]], num())],
+			// ["true ? 1 : 0", num()],
+			// ["true ? true : false", bool()],
+			["(x: number) => 1", func([["x", num()]], num())],
+			["(x: number) => x + 1", func([["x", num()]], num())],
 			["((x: number) => x)(1)", num()],
-			["(fn: () => number) => fn()", fn([["fn", fn([], num())]], num())],
+			["(fn: () => number) => fn()", func([["fn", func([], num())]], num())],
 			["0; 1", num()],
 			["false; 1", num()],
 			["const x = 1", num()],
 			["const x = 1; const x = true", bool()],
-			[
-				trim(`const add = (x: number, y: number) => {
-								const z = x + y;
-								return z;
-							};
-							const select = (cond: boolean, thn: number, els: number) => cond ? thn : els;
-							const x = add(1, add(2, 3));
-							const y = select(true, x, 0);
-							y;`),
-				num(),
-			],
-			// オブジェクトリテラル
-			[
-				"({ a: 1, b: true })",
-				obj([
-					["a", num()],
-					["b", bool()],
-				]),
-			],
-			// オブジェクトプロパティアクセス
+			// [
+			// 	trim(`const add = (x: number, y: number) => {
+			// 					const z = x + y;
+			// 					return z;
+			// 				};
+			// 				const select = (cond: boolean, thn: number, els: number) => cond ? thn : els;
+			// 				const x = add(1, add(2, 3));
+			// 				const y = select(true, x, 0);
+			// 				y;`),
+			// 	num(),
+			// ],
+			["({ a: 1, b: true })", obj(["a", num()], ["b", bool()])],
 			["const obj = { a: 1, b: true }; obj.a;", num()],
 			["const obj = { a: 1, b: true }; obj.b;", bool()],
 		])("OK: `%s`", (term, expected) => {
@@ -237,8 +258,8 @@ if (import.meta.vitest) {
 		});
 
 		test.each([
-			["1 ? 1 : 0", "boolean expected"],
-			["true ? true : 0", "branches must have the same type"],
+			// ["1 ? 1 : 0", "boolean expected"],
+			// ["true ? true : 0", "branches must have the same type"],
 			["true + 1", "number expected on left side of `+`"],
 			["1 + true", "number expected on right side of `+`"],
 			["x", "unknown variable: x"],
@@ -255,7 +276,6 @@ if (import.meta.vitest) {
 							z;`),
 				"unknown variable: z",
 			],
-			// オブジェクトプロパティアクセス
 			["const nonObj = 1; nonObj.a;", "object expected"],
 			["const obj = { a: 1, b: true }; obj.c;", "unknown property: c"],
 			[
@@ -271,53 +291,65 @@ if (import.meta.vitest) {
 		test.each([
 			[num(), num()],
 			[bool(), bool()],
-			[fn([], num()), fn([], num())],
-			[fn([["x", bool()]], num()), fn([["x", bool()]], num())],
-			[fn([["x", bool()]], num()), fn([["y", bool()]], num())],
-			// オブジェクト
-			[obj([["a", num()]]), obj([["a", num()]])],
-			[
-				obj([
-					["a", num()],
-					["b", bool()],
-				]),
-				obj([
-					["a", num()],
-					["b", bool()],
-				]),
-			],
-			[
-				obj([
-					["a", num()],
-					["b", bool()],
-				]),
-				obj([
-					["b", bool()],
-					["a", num()],
-				]),
-			],
-		])("`%s` == `%s`", (a, b) => {
+			[func([], num()), func([], num())],
+			[func([["x", bool()]], num()), func([["x", bool()]], num())],
+			[func([["x", bool()]], num()), func([["y", bool()]], num())],
+			[obj(["a", num()]), obj(["a", num()])],
+			[obj(["a", num()], ["b", bool()]), obj(["a", num()], ["b", bool()])],
+			[obj(["a", num()], ["b", bool()]), obj(["b", bool()], ["a", num()])],
+		])("`%s` is equal to `%s`", (a, b) => {
 			expect(isEqualType(a, b)).toStrictEqual(true);
 		});
 
 		test.each([
 			[num(), bool()],
 			[bool(), num()],
-			[fn([], num()), bool()],
-			[fn([], num()), fn([], bool())],
-			[fn([], num()), fn([["x", num()]], num())],
-			[fn([["x", num()]], num()), fn([["x", bool()]], num())],
-			[obj([["a", num()]]), obj([["a", bool()]])],
-			[obj([["a", num()]]), obj([["b", num()]])],
-			[
-				obj([["a", num()]]),
-				obj([
-					["a", num()],
-					["b", bool()],
-				]),
-			],
-		])("`%s` != `%s`", (a, b) => {
+			[func([], num()), bool()],
+			[func([], num()), func([], bool())],
+			[func([], num()), func([["x", num()]], num())],
+			[func([["x", num()]], num()), func([["x", bool()]], num())],
+			[obj(["a", num()]), obj(["a", bool()])],
+			[obj(["a", num()]), obj(["b", num()])],
+			[obj(["a", num()]), obj(["a", num()], ["b", bool()])],
+			[obj(["a", num()], ["b", bool()]), obj(["a", num()])],
+		])("`%s` is not equal to `%s`", (a, b) => {
 			expect(isEqualType(a, b)).toStrictEqual(false);
+		});
+	});
+
+	describe(isSubtypeOf, () => {
+		test.each([
+			[num(), num()],
+			[bool(), bool()],
+			[func([], num()), func([], num())],
+			[func([["x", bool()]], num()), func([["x", bool()]], num())],
+			[func([["x", bool()]], num()), func([["y", bool()]], num())],
+			[obj(["a", num()]), obj(["a", num()])],
+			[obj(["a", num()], ["b", bool()]), obj(["a", num()], ["b", bool()])],
+			[obj(["a", num()], ["b", bool()]), obj(["b", bool()], ["a", num()])],
+			[obj(["a", num()], ["b", bool()]), obj(["a", num()])],
+			[
+				func([["x", obj(["a", num()])]], num()),
+				func([["x", obj(["a", num()], ["b", num()])]], num()),
+			],
+			[func([], obj(["a", num()], ["b", num()])), func([], obj(["a", num()]))],
+		])("true: `%s` is a subtype of `%s`", (a, b) => {
+			expect(isSubtypeOf(a, b)).toStrictEqual(true);
+		});
+
+		test.each([
+			[num(), bool()],
+			[bool(), num()],
+			[func([], num()), bool()],
+			[func([], num()), func([], bool())],
+			[func([], num()), func([["x", num()]], num())],
+			[func([["x", num()]], num()), func([["x", bool()]], num())],
+			[obj(["a", num()]), obj(["a", bool()])],
+			[obj(["a", num()]), obj(["b", num()])],
+			[obj(["a", num()]), obj(["a", num()], ["b", bool()])],
+			[func([], obj(["a", num()])), func([], obj(["a", num()], ["b", num()]))],
+		])("false: `%s` is not a subtype of `%s`", (a, b) => {
+			expect(isSubtypeOf(a, b)).toStrictEqual(false);
 		});
 	});
 
@@ -325,28 +357,22 @@ if (import.meta.vitest) {
 		test.each([
 			[bool(), "boolean"],
 			[num(), "number"],
-			[fn([], num()), "() => number"],
-			[fn([["x", bool()]], num()), "(x: boolean) => number"],
+			[func([], num()), "() => number"],
+			[func([["x", bool()]], num()), "(x: boolean) => number"],
 			[
-				fn(
+				func(
 					[
-						["f", fn([["x", num()]], bool())],
-						["g", fn([["y", num()]], bool())],
+						["f", func([["x", num()]], bool())],
+						["g", func([["y", num()]], bool())],
 					],
-					fn([["z", num()]], bool()),
+					func([["z", num()]], bool()),
 				),
 				"(f: (x: number) => boolean, g: (y: number) => boolean) => (z: number) => boolean",
 			],
 			// オブジェクト
-			[obj([["a", num()]]), "{ a: number }"],
-			[
-				obj([
-					["a", num()],
-					["b", bool()],
-				]),
-				"{ a: number, b: boolean }",
-			],
-			[obj([["a", fn([], num())]]), "{ a: () => number }"],
+			[obj(["a", num()]), "{ a: number }"],
+			[obj(["a", num()], ["b", bool()]), "{ a: number, b: boolean }"],
+			[obj(["a", func([], num())]), "{ a: () => number }"],
 		])("shows %s as %s", (t, expected) => {
 			expect(typeShow(t)).toStrictEqual(expected);
 		});

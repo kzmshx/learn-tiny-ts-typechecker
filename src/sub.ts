@@ -148,7 +148,7 @@ export function typecheck(t: Term, tyEnv: TypeEnv): Type {
 				const arg = ensure(t.args[i]);
 				const param = ensure(funcTy.params[i]);
 				const argTy = typecheck(arg, tyEnv);
-				assert(isEqualType(argTy, param.type), "parameter type mismatch", t);
+				assert(isSubtypeOf(argTy, param.type), "parameter type mismatch", t);
 			}
 			return funcTy.retType;
 		}
@@ -251,6 +251,21 @@ if (import.meta.vitest) {
 			["({ a: 1, b: true })", obj(["a", num()], ["b", bool()])],
 			["const obj = { a: 1, b: true }; obj.a;", num()],
 			["const obj = { a: 1, b: true }; obj.b;", bool()],
+			[
+				trim(`const f = (x: { a: number }): number => x.a;
+						  f({ a: 1, b: true });`),
+				num(),
+			],
+			[
+				trim(`const f = (g: (x: { a: number, b: number }) => number): number => g({ a: 1, b: 2 });
+							f((x: { a: number }) => x.a + 1);`),
+				num(),
+			],
+			[
+				trim(`const f = (g: (x: { a: number, b: number }) => number): number => g({ a: 1, b: 2 });
+						  f((x: { a: number, b: number }) => x.a + x.b);`),
+				num(),
+			],
 		])("OK: `%s`", (term, expected) => {
 			expect(typecheck(parseSub(term), {})).toStrictEqual(expected);
 		});
@@ -277,7 +292,13 @@ if (import.meta.vitest) {
 			["const nonObj = 1; nonObj.a;", "object expected"],
 			["const obj = { a: 1, b: true }; obj.c;", "unknown property: c"],
 			[
-				"const f = (obj: { a: number }) => obj.a; f({ a: 1, b: true });",
+				trim(`const f = (x: { a: number, b: boolean }): number => x.a;
+						  f({ a: 1 });`),
+				"parameter type mismatch",
+			],
+			[
+				trim(`const f = (g: (x: { a: number }) => number): number => g({ a: 1 });
+						  f((x: { a: number, b: number }) => x.a + x.b);`),
 				"parameter type mismatch",
 			],
 		])("NG: `%s`", (term, expected) => {

@@ -206,22 +206,20 @@ export function typeShow(t: Type): string {
 if (import.meta.vitest) {
 	const { describe, expect, test } = await import("vitest");
 	const { parseSub } = await import("tiny-ts-parser");
-
-	const trim = (s: string): string => s.trim().replace(/\s+/g, " ");
-
+	// type factories
 	const bool = (): Type => ({ tag: "Boolean" });
 	const num = (): Type => ({ tag: "Number" });
-	const param = (name: string, type: Type): ParamType => ({ name, type });
-	const prop = (name: string, type: Type): PropType => ({ name, type });
 	const func = (params: [name: string, type: Type][], retType: Type): Type => ({
 		tag: "Func",
-		params: params.map(([name, type]) => param(name, type)),
+		params: params.map(([name, type]) => ({ name, type })),
 		retType,
 	});
 	const obj = (...props: [name: string, type: Type][]): Type => ({
 		tag: "Object",
-		props: props.map(([name, type]) => prop(name, type)),
+		props: props.map(([name, type]) => ({ name, type })),
 	});
+	// utils
+	const trim = (s: string): string => s.trim().replace(/\s+/g, " ");
 
 	describe(typecheck, () => {
 		test.each([
